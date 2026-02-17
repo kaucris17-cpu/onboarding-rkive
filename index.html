@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>rKive | Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./assets/css/styles.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
+
+    <script type="module">
+      import { seedIfNeeded, login, requestPasswordResetMock, completeProfileIfNeeded, getSession } from './assets/js/auth.js';
+      import { initTheme, mountThemeToggle } from './assets/js/theme.js';
+      import { h, qs, toast, setDocumentTitle } from './assets/js/utils.js';
+
+      setDocumentTitle('rKive | Login');
+      initTheme();
+
+      await seedIfNeeded();
+
+      const session = getSession();
+      if (session?.userId) {
+        location.href = './dashboard.html';
+      }
+
+      const app = qs('#app');
+
+      function render() {
+        app.innerHTML = '';
+        const main = h('main', { class: 'auth-shell' }, [
+          h('section', { class: 'auth-card', role: 'region', 'aria-label': 'Autenticação' }, [
+            h('header', { class: 'auth-header' }, [
+              h('div', { class: 'brand' }, [
+                h('span', { class: 'brand-mark', 'aria-hidden': 'true' }, 'rK'),
+                h('div', {}, [
+                  h('h1', { class: 'brand-title' }, 'rKive'),
+                  h('p', { class: 'brand-subtitle' }, 'Área de Membros • Onboarding Interno')
+                ])
+              ]),
+              h('div', { class: 'auth-actions' }, [
+                mountThemeToggle()
+              ])
+            ]),
+            h('form', { class: 'form', id: 'login-form', autocomplete: 'on' }, [
+              h('div', { class: 'field' }, [
+                h('label', { for: 'email' }, 'E-mail'),
+                h('input', { id: 'email', name: 'email', type: 'email', required: 'true', placeholder: 'nome@rkive.example', autocomplete: 'username' })
+              ]),
+              h('div', { class: 'field' }, [
+                h('label', { for: 'password' }, 'Senha'),
+                h('input', { id: 'password', name: 'password', type: 'password', required: 'true', placeholder: '••••••••', autocomplete: 'current-password' })
+              ]),
+              h('button', { class: 'btn btn-primary', type: 'submit' }, 'Entrar'),
+              h('button', { class: 'btn btn-ghost', type: 'button', id: 'forgot' }, 'Esqueci minha senha')
+            ]),
+            h('footer', { class: 'auth-footer' }, [
+              h('p', { class: 'muted' }, 'Ambiente simulado em front-end (localStorage).')
+            ])
+          ])
+        ]);
+
+        app.appendChild(main);
+
+        qs('#login-form').addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          const email = qs('#email').value.trim();
+          const password = qs('#password').value;
+
+          try {
+            await login(email, password);
+            await completeProfileIfNeeded(); // se necessário, abre wizard no dashboard
+            location.href = './dashboard.html';
+          } catch (e) {
+            toast(e?.message || 'Falha no login.', 'error');
+          }
+        });
+
+        qs('#forgot').addEventListener('click', async () => {
+          const email = qs('#email').value.trim();
+          if (!email) {
+            toast('Informe o e-mail para simular o reset.', 'warning');
+            qs('#email').focus();
+            return;
+          }
+          await requestPasswordResetMock(email);
+          toast('Reset simulado: senha redefinida para "rkive123".', 'success');
+          qs('#password').value = 'rkive123';
+          qs('#password').focus();
+        });
+      }
+
+      render();
+    </script>
+  </body>
+</html>

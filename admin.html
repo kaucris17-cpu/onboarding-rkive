@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>rKive | Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./assets/css/styles.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
+
+    <script type="module">
+      import { seedIfNeeded, requireAuth, getCurrentUser, logout } from './assets/js/auth.js';
+      import { initTheme, mountThemeToggle } from './assets/js/theme.js';
+      import { can, guardOrRedirect } from './assets/js/permissions.js';
+      import { mountAdminApp } from './assets/js/admin.js';
+      import { h, qs, setDocumentTitle, mountCommandPalette } from './assets/js/utils.js';
+
+      setDocumentTitle('rKive | Admin');
+      initTheme();
+      await seedIfNeeded();
+      requireAuth();
+
+      const user = getCurrentUser();
+      guardOrRedirect('admin.users.manage', './dashboard.html');
+
+      const app = qs('#app');
+
+      function renderShell() {
+        app.innerHTML = '';
+        const shell = h('div', { class: 'app-shell' }, [
+          h('header', { class: 'topbar' }, [
+            h('div', { class: 'topbar-left' }, [
+              h('a', { class: 'btn btn-ghost', href: './dashboard.html' }, 'Voltar'),
+              h('div', { class: 'brand brand-compact' }, [
+                h('span', { class: 'brand-mark', 'aria-hidden': 'true' }, 'rK'),
+                h('span', { class: 'brand-title' }, 'rKive Admin')
+              ])
+            ]),
+            h('div', { class: 'topbar-right' }, [
+              h('button', { class: 'btn btn-ghost', id: 'cmdk', type: 'button' }, 'Ctrl+K'),
+              mountThemeToggle(),
+              h('button', { class: 'btn btn-danger', id: 'logout', type: 'button' }, 'Sair')
+            ])
+          ]),
+          h('main', { class: 'main main-wide', id: 'main', tabindex: '-1' })
+        ]);
+
+        app.appendChild(shell);
+
+        qs('#logout').addEventListener('click', () => {
+          logout();
+          location.href = './index.html';
+        });
+      }
+
+      renderShell();
+
+      const paletteItems = [
+        { label: 'Gestão de usuários', action: () => location.hash = '#users' },
+        { label: 'Gestão de conteúdos', action: () => location.hash = '#contents' },
+        { label: 'Avaliações e provas', action: () => location.hash = '#quizzes' },
+        { label: 'Acompanhamento', action: () => location.hash = '#analytics' },
+        { label: 'Dashboard', action: () => location.href = './dashboard.html' }
+      ];
+      mountCommandPalette({ items: paletteItems, hint: 'Admin' });
+      qs('#cmdk').addEventListener('click', () => window.__rkiveCmdkOpen?.());
+
+      mountAdminApp(qs('#main'), user);
+    </script>
+  </body>
+</html>

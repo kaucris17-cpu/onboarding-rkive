@@ -1,0 +1,50 @@
+Explicação arquitetural resumida
+
+Persistência local: JSON inicial é “semeado” no localStorage na primeira execução (seedIfNeeded), e a aplicação opera sempre lendo/escrevendo do storage.
+
+Modularização: cada domínio (auth, permissions, content, progress, quizzes, assistant, theme) é isolado em um módulo ES.
+
+RBAC + overrides: permissões base por papel, com permissionsOverride.allow/deny por usuário (feature-based). O menu esconde itens sem permissão e as seções são protegidas por guardas.
+
+Trilhas e progresso: conteúdos obrigatórios por cargo/setor são ordenados e o progresso é salvo por usuário com timestamp.
+
+Avaliações: questionário final só aparece quando o progresso obrigatório atinge 100%. Provas periódicas geram “runs” (instâncias) automaticamente com recorrência e prazo, registrando tentativas no histórico.
+
+UX: microinterações via CSS, “drawer” no Admin para CRUD sem trocar de tela, e Ctrl+K para menu rápido.
+
+Pontos claros de integração futura com API (onde entra back-end)
+
+No código, já existem comentários “PONTO DE INTEGRAÇÃO FUTURA (API)” nos locais principais. Lista objetiva:
+
+auth.js: trocar fetch('./data/*.json') e login/reset mock por /api/bootstrap, /api/auth/login, /api/auth/reset.
+
+content.js: substituir localStorage por GET/PUT /api/contents.
+
+admin.js: persistir usuários em GET/POST/PUT /api/users e conteúdos/quizzes via endpoints.
+
+quizzes.js: persistir tentativas e runs em /api/attempts e /api/quiz-runs.
+
+assistantProvider.js: substituir mock por POST /api/assistant/chat.
+---------------------------------------
+-----------------------------------------
+/index.html
+/dashboard.html
+/admin.html
+/assets/
+  css/
+    styles.css
+  js/
+    auth.js
+    permissions.js
+    content.js
+    progress.js
+    quizzes.js
+    admin.js
+    assistant.js
+    assistantProvider.js
+    theme.js
+    utils.js
+/data/
+  users.json
+  contents.json
+  quizzes.json

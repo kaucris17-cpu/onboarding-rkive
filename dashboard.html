@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>rKive | Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./assets/css/styles.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
+
+    <script type="module">
+      import { seedIfNeeded, requireAuth, getCurrentUser, logout, ensureProfileWizardIfNeeded } from './assets/js/auth.js';
+      import { initTheme, mountThemeToggle } from './assets/js/theme.js';
+      import { can, guardOrRedirect, getNavForUser } from './assets/js/permissions.js';
+      import { ContentRepo, getTrailForUser } from './assets/js/content.js';
+      import { getUserProgress, percentRequired, nextRequiredItems, markCompleted } from './assets/js/progress.js';
+      import { QuizRepo, getPendingQuizzesForUser, canTakeFinalQuiz } from './assets/js/quizzes.js';
+      import { mountAssistantPanel } from './assets/js/assistant.js';
+      import { h, qs, toast, formatDateTime, setDocumentTitle, mountCommandPalette } from './assets/js/utils.js';
+
+      setDocumentTitle('rKive | Dashboard');
+      initTheme();
+      await seedIfNeeded();
+      requireAuth();
+
+      const user = getCurrentUser();
+      await ensureProfileWizardIfNeeded(); // wizard se unit/sector/position indefinidos
+
+      const app = qs('#app');
+
+      const sections = [
+        { id: 'home', label: 'Dashboard', permission: 'dashboard.view' },
+        { id: 'onboarding', label: 'Onboarding', permission: 'onboarding.view' },
+        { id: 'library', label: 'Biblioteca', permission: 'library.view' },
+        { id: 'links', label: 'Links úteis', permission: 'links.view' },
+        { id: 'institutional', label: 'Institucional', permission: 'institutional.view' },
+        { id: 'quizzes', label: 'Avaliações', permission: 'quizzes.view' },
+        { id: 'assistant', label: 'Assistente', permission: 'dashboard.view' }
+      ];
+
+      function currentSectionId() {
+        const raw = (location.hash || '#home').replace('#', '');
+        return sections.some(s => s.id === raw) ? raw : 'home';
+      }
+
+      function renderShell() {
+        app.innerHTML = '';
+        const navItems = getNavForUser(sections);
+
+        const shell = h('div', { class: 'app-shell' }, [
+          h('header', { class: 'topbar' }, [
+            h('div', { class: 'topbar-left' }, [
+              h('button', { class: 'icon-btn', id: 'nav-toggle', 'aria-label': 'Abrir/fechar navegação', 'aria-expanded': 'true' }, '☰'),
+              h('div', { class: 'brand brand-compact' }, [
+                h('span', { class: 'brand-mark', 'aria-hidden': 'true' }, 'rK'),
+                h('span', { class: 'brand-title' }, 'rKive')
+              ])
+            ]),
+            h('div', { class: 'topbar-right' }, [
+              h('button', { class: 'btn btn-ghost', id: 'cmdk', type: 'button' }, 'Ctrl+K'),
+              mountThemeToggle(),
+              h('div', { class: 'user-menu' }, [
+                h('button', { class: 'user-pill', id: 'user-pill', type: 'button', 'aria-haspopup': 'menu', 'aria-expanded': 'false' }, [
+                  h('span', { class: 'avatar', 'aria-hidden': 'true' }, user.name.slice(0,1).toUpperCase()),
+                  h('span', { class: 'user-name' }, user.name)
+                ]),
+                h('div', { class: 'menu', id: 'user-menu', role: 'menu' }, [
+                  user.role === 'Admin' ? h('a', { class: 'menu-item', href: './admin.html', role: 'menuitem' }, 'Abrir Admin') : null,
+                  h('button', { class: 'menu-item danger', role: 'menuitem', id: 'logout', type: 'button' }, 'Sair')
+                ].filter(Boolean))
+              ])
+            ])
+          ]),
+          h('aside', { class: 'sidebar', id: 'sidebar' }, [
+            h('nav', { class: 'nav', 'aria-label': 'Navegação' },
+              navItems.map(item =>
+                h('a', { href: `#${item.id}`, class: `nav-item ${currentSectionId() === item.id ? 'active' : ''}` }, item.label)
+              )
+            ),
+            h('div', { class: 'sidebar-foot' }, [
+              h('p', { class: 'muted' }, `${user.unit || 'rKive'} • ${user.sector || 'Setor'} • ${user.position || 'Cargo'}`)
+            ])
+          ]),
+          h('main', { class: 'main', id: 'main', tabindex: '-1' }, []),
+          h('div', { class: 'backdrop', id: 'backdrop', hidden: 'true' })
+        ]);
+
+        app.appendChild(shell);
+
+        // menu do usuário
+        const pill = qs('#user-pill');
+        const menu = qs('#user-menu');
+        pill.addEventListener('click', () => {
+          const expanded = pill.getAttribute('aria-expanded') === 'true';
+          pill.setAttribute('aria-expanded', String(!expanded));
+          menu.classList.toggle('open', !expanded);
+        });
+        document.addEventListener('click', (e) => {
+          if (!qs('.user-menu').contains(e.target)) {
+            pill.setAttribute('aria-expanded', 'false');
+            menu.classList.remove('open');
+          }
+        });
+
+        qs('#logout').addEventListener('click', () => {
+          logout();
+          location.href = './index.html';
+        });
+
+        // sidebar toggle
+        const sidebar = qs('#sidebar');
+        const backdrop = qs('#backdrop');
+        const toggle = qs('#nav-toggle');
+
+        function setSidebarOpen(open) {
+          sidebar.classList.toggle('open', open);
+          backdrop.hidden = !open;
+          toggle.setAttribute('aria-expanded', String(open));
+        }
+
+        toggle.addEventListener('click', () => setSidebarOpen(!sidebar.classList.contains('open')));
+        backdrop.addEventListener('click', () => setSidebarOpen(false));
+
+        // Command palette (Ctrl+K)
+        mountCommandPalette({
+          items: navItems.map(i => ({ label: i.label, action: () => { location.hash = `#${i.id}`; } }))
+            .concat(user.role === 'Admin' ? [{ label: 'Admin', action: () => location.href = './admin.html' }] : []),
+          hint: 'Navegar'
+        });
+
+        qs('#cmdk').addEventListener('click', () => {
+          window.__rkiveCmdkOpen?.();
+        });
+      }
+
+      function render() {
+        renderShell();
+        renderSection(currentSectionId());
+      }
+
+      function enforceSectionPermission(sectionId) {
+        const section = sections.find(s => s.id === sectionId) || sections[0];
+        guardOrRedirect(section.permission, '#home');
+      }
+
+      async function renderSection(sectionId) {
+        enforceSectionPermission(sectionId);
+        const main = qs('#main');
+        main.innerHTML = '';
+
+        // atualizar nav active
+        qsAll('.nav-item').forEach(a => a.classList.toggle('active', a.getAttribute('href') === `#${sectionId}`));
+        main.focus();
+
+        if (sectionId === 'home') return renderHome(main);
+        if (sectionId === 'onboarding') return renderOnboarding(main);
+        if (sectionId === 'library') return renderLibrary(main);
+        if (sectionId === 'links') return renderLinks(main);
+        if (sectionId === 'institutional') return renderInstitutional(main);
+        if (sectionId === 'quizzes') return renderQuizzes(main);
+        if (sectionId === 'assistant') return renderAssistant(main);
+      }
+
+      function qsAll(sel, root=document) { return Array.from(root.querySelectorAll(sel)); }
+
+      async function renderHome(main) {
+        const trail = await getTrailForUser(user);
+        const progress = getUserProgress(user.id);
+        const pct = percentRequired(trail, progress);
+        const nextItems = nextRequiredItems(trail, progress, 3);
+
+        const pendingQuizzes = await getPendingQuizzesForUser(user);
+        const finalEligible = await canTakeFinalQuiz(user);
+
+        main.appendChild(
+          h('section', { class: 'page' }, [
+            h('header', { class: 'page-head' }, [
+              h('div', {}, [
+                h('h2', {}, 'Dashboard'),
+                h('p', { class: 'muted' }, `Bem-vindo(a), ${user.name}.`)
+              ]),
+              h('div', { class: 'page-actions' }, [
+                h('a', { class: 'btn btn-secondary', href: '#onboarding' }, 'Ir para Onboarding')
+              ])
+            ]),
+            h('div', { class: 'grid grid-2' }, [
+              h('div', { class: 'card' }, [
+                h('h3', {}, 'Progresso da trilha'),
+                h('div', { class: 'progress-row' }, [
+                  h('div', { class: 'progress' }, [
+                    h('div', { class: 'progress-bar', style: `width:${pct}%` , 'aria-hidden': 'true' })
+                  ]),
+                  h('div', { class: 'progress-meta' }, [
+                    h('span', { class: 'badge badge-soft' }, `${pct}%`),
+                    h('span', { class: 'muted' }, `${trail.requiredCount} obrigatórios`)
+                  ])
+                ]),
+                h('div', { class: 'stack' }, [
+                  h('h4', { class: 'subhead' }, 'Próximos obrigatórios'),
+                  nextItems.length
+                    ? h('ul', { class: 'list' }, nextItems.map(c =>
+                        h('li', { class: 'list-item' }, [
+                          h('div', {}, [
+                            h('strong', {}, c.title),
+                            h('div', { class: 'muted small' }, `${c.type} • ${c.estimatedTime} • Atualizado em ${c.updatedAt}`)
+                          ]),
+                          h('a', { class: 'btn btn-ghost', href: '#onboarding' }, 'Abrir')
+                        ])
+                      ))
+                    : h('p', { class: 'muted' }, 'Nenhum item pendente.')
+                ])
+              ]),
+              h('div', { class: 'card' }, [
+                h('h3', {}, 'Avaliações pendentes'),
+                h('div', { class: 'stack' }, [
+                  pendingQuizzes.length
+                    ? h('ul', { class: 'list' }, pendingQuizzes.slice(0, 5).map(q =>
+                        h('li', { class: 'list-item' }, [
+                          h('div', {}, [
+                            h('strong', {}, q.title),
+                            h('div', { class: 'muted small' }, q.meta)
+                          ]),
+                          h('a', { class: 'btn btn-primary', href: '#quizzes' }, 'Abrir')
+                        ])
+                      ))
+                    : h('p', { class: 'muted' }, 'Sem avaliações pendentes no momento.'),
+                  h('div', { class: 'callout' }, [
+                    h('strong', {}, 'Questionário final'),
+                    h('p', { class: 'muted' }, finalEligible ? 'Liberado para realização.' : 'Disponível somente após 100% dos conteúdos obrigatórios.'),
+                    h('a', { class: `btn ${finalEligible ? 'btn-primary' : 'btn-secondary'}`, href: '#quizzes' }, 'Ver avaliações')
+                  ])
+                ])
+              ])
+            ]),
+            h('div', { class: 'grid grid-2' }, [
+              h('div', { class: 'card' }, [
+                h('h3', {}, 'Avisos'),
+                h('ul', { class: 'list' }, [
+                  h('li', { class: 'list-item' }, [
+                    h('div', {}, [
+                      h('strong', {}, 'Ctrl+K'),
+                      h('div', { class: 'muted small' }, 'Abra o menu rápido para navegar pelas áreas permitidas.')
+                    ])
+                  ]),
+                  h('li', { class: 'list-item' }, [
+                    h('div', {}, [
+                      h('strong', {}, 'Modo escuro'),
+                      h('div', { class: 'muted small' }, 'Seu tema é salvo e aplicado em todas as páginas.')
+                    ])
+                  ])
+                ])
+              ]),
+              h('div', { class: 'card' }, [
+                h('h3', {}, 'Minha evolução'),
+                h('div', { class: 'muted' }, 'Conclusões e tentativas recentes.'),
+                h('div', { class: 'stack' }, [
+                  ...getUserProgress(user.id).recentActivity.slice(0, 6).map(a =>
+                    h('div', { class: 'timeline-item' }, [
+                      h('div', { class: 'dot', 'aria-hidden': 'true' }),
+                      h('div', {}, [
+                        h('strong', {}, a.title),
+                        h('div', { class: 'muted small' }, `${a.kind} • ${formatDateTime(a.at)}`)
+                      ])
+                    ])
+                  )
+                ])
+              ])
+            ])
+          ])
+        );
+      }
+
+      async function renderOnboarding(main) {
+        const trail = await getTrailForUser(user);
+        const progress = getUserProgress(user.id);
+
+        let filter = 'all';
+
+        function listFiltered() {
+          if (filter === 'all') return trail.items;
+          return trail.items.filter(c => c.type === filter);
+        }
+
+        function buildFilters() {
+          const types = ['all', ...Array.from(new Set(trail.items.map(i => i.type)))];
+          return h('div', { class: 'chips', role: 'tablist', 'aria-label': 'Filtros por tipo' },
+            types.map(t =>
+              h('button', {
+                class: `chip ${filter === t ? 'active' : ''}`,
+                type: 'button',
+                role: 'tab',
+                'aria-selected': String(filter === t),
+                onclick: () => { filter = t; renderOnboarding(main); }
+              }, t === 'all' ? 'Todos' : t)
+            )
+          );
+        }
+
+        main.appendChild(
+          h('section', { class: 'page' }, [
+            h('header', { class: 'page-head' }, [
+              h('div', {}, [
+                h('h2', {}, 'Onboarding'),
+                h('p', { class: 'muted' }, `Trilha do cargo: ${user.position || 'Não definido'}`)
+              ]),
+              h('div', { class: 'page-actions' }, [
+                h('a', { class: 'btn btn-ghost', href: '#home' }, 'Voltar')
+              ])
+            ]),
+            h('div', { class: 'card' }, [
+              buildFilters(),
+              h('div', { class: 'table-wrap' }, [
+                h('table', { class: 'table' }, [
+                  h('thead', {}, [
+                    h('tr', {}, [
+                      h('th', {}, 'Ordem'),
+                      h('th', {}, 'Título'),
+                      h('th', {}, 'Tipo'),
+                      h('th', {}, 'Tempo'),
+                      h('th', {}, 'Obrigatório'),
+                      h('th', {}, 'Status'),
+                      h('th', {}, 'Ações')
+                    ])
+                  ]),
+                  h('tbody', {}, listFiltered().map(c => {
+                    const done = Boolean(progress.completed[c.id]);
+                    return h('tr', {}, [
+                      h('td', {}, String(c.order ?? '-')),
+                      h('td', {}, [
+                        h('div', { class: 'td-title' }, c.title),
+                        h('div', { class: 'muted small' }, c.description)
+                      ]),
+                      h('td', {}, c.type),
+                      h('td', {}, c.estimatedTime),
+                      h('td', {}, c.required ? 'Sim' : 'Não'),
+                      h('td', {}, done ? `Concluído em ${formatDateTime(progress.completed[c.id].completedAt)}` : 'Pendente'),
+                      h('td', {}, [
+                        h('button', {
+                          class: 'btn btn-secondary',
+                          type: 'button',
+                          onclick: () => openContentPreview(c, done)
+                        }, 'Abrir'),
+                      ])
+                    ]);
+                  }))
+                ])
+              ])
+            ])
+          ])
+        );
+
+        function openContentPreview(content, done) {
+          // preview simplificado em modal/drawer leve
+          const dlg = document.createElement('dialog');
+          dlg.className = 'dialog';
+          dlg.innerHTML = `
+            <div class="dialog-head">
+              <div>
+                <div class="badge badge-soft">${content.type}</div>
+                <h3>${escapeHtml(content.title)}</h3>
+                <p class="muted">${escapeHtml(content.description)}</p>
+              </div>
+              <button class="icon-btn" data-close aria-label="Fechar">×</button>
+            </div>
+            <div class="dialog-body">
+              ${renderContentPreviewHtml(content)}
+              <div class="muted small">Responsável: ${escapeHtml(content.owner)} • Atualizado: ${escapeHtml(content.updatedAt)}</div>
+            </div>
+            <div class="dialog-foot">
+              <a class="btn btn-ghost" target="_blank" rel="noreferrer" href="${content.url || '#'}">Abrir em nova aba</a>
+              <button class="btn btn-primary" data-complete ${done ? 'disabled' : ''}>${done ? 'Concluído' : 'Concluir'}</button>
+            </div>
+          `;
+          document.body.appendChild(dlg);
+          dlg.showModal();
+          dlg.querySelector('[data-close]').addEventListener('click', () => { dlg.close(); dlg.remove(); });
+          dlg.addEventListener('close', () => dlg.remove());
+
+          dlg.querySelector('[data-complete]').addEventListener('click', async () => {
+            try {
+              await markCompleted(user.id, content.id);
+              toast('Conteúdo concluído.', 'success');
+              dlg.close();
+              renderOnboarding(main);
+            } catch {
+              toast('Não foi possível concluir.', 'error');
+            }
+          });
+        }
+
+        function renderContentPreviewHtml(c) {
+          if (c.type === 'Videoaula' && c.embedUrl) {
+            return `<div class="embed"><iframe title="Prévia de vídeo" src="${c.embedUrl}" loading="lazy" referrerpolicy="no-referrer"></iframe></div>`;
+          }
+          if (c.type === 'Documento') {
+            return `<div class="placeholder">
+              <strong>Documento</strong>
+              <div class="muted">Link: ${escapeHtml(c.url || 'N/A')}</div>
+            </div>`;
+          }
+          if (c.type === 'Apresentação') {
+            return `<div class="placeholder">
+              <strong>Apresentação</strong>
+              <div class="muted">Link: ${escapeHtml(c.url || 'N/A')}</div>
+            </div>`;
+          }
+          if (c.type === 'Link externo') {
+            return `<div class="placeholder">
+              <strong>Link externo</strong>
+              <div class="muted">Link: ${escapeHtml(c.url || 'N/A')}</div>
+            </div>`;
+          }
+          if (c.type === 'Curso interno') {
+            return `<div class="placeholder">
+              <strong>Curso interno</strong>
+              <div class="muted">Acesse o link para iniciar.</div>
+            </div>`;
+          }
+          if (c.type === 'Post institucional') {
+            return `<div class="placeholder">
+              <strong>Post institucional</strong>
+              <div class="muted">Leitura interna via link.</div>
+            </div>`;
+          }
+          return `<div class="placeholder"><div class="muted">Pré-visualização indisponível.</div></div>`;
+        }
+
+        function escapeHtml(s) {
+          return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+        }
+      }
+
+      async function renderLibrary(main) {
+        const all = await ContentRepo.list();
+        const allowed = all.filter(c => can('library.view') && ContentRepo.isVisibleToUser(c, user));
+        main.appendChild(
+          h('section', { class: 'page' }, [
+            h('header', { class: 'page-head' }, [
+              h('div', {}, [
+                h('h2', {}, 'Biblioteca'),
+                h('p', { class: 'muted' }, 'Conteúdos extras conforme permissões e segmentação.')
+              ])
+            ]),
+            h('div', { class: 'grid grid-3' }, allowed.map(c =>
+              h('article', { class: 'card card-click' }, [
+                h('div', { class: 'badge' }, c.type),
+                h('h3', { class: 'card-title' }, c.title),
+                h('p', { class: 'muted' }, c.description),
+                h('div', { class: 'card-foot' }, [
+                  h('span', { class: 'muted small' }, c.estimatedTime),
+                  h('a', { class: 'btn btn-secondary', href: c.url || '#', target: '_blank', rel: 'noreferrer' }, 'Abrir')
+                ])
+              ])
+            ))
+          ])
+        );
+      }
+
+      async function renderLinks(main) {
+        const all = await ContentRepo.list();
+        const links = all.filter(c => c.type === 'Link externo' && ContentRepo.isVisibleToUser(c, user));
+        main.appendChild(
+          h('section', { class: 'page' }, [
+            h('header', { class: 'page-head' }, [
+              h('div', {}, [
+                h('h2', {}, 'Links úteis'),
+                h('p', { class: 'muted' }, 'Acesso rápido a ferramentas e recursos.')
+              ])
+            ]),
+            h('div', { class: 'grid grid-2' }, links.map(c =>
+              h('article', { class: 'card' }, [
+                h('h3', { class: 'card-title' }, c.title),
+                h('p', { class: 'muted' }, c.description),
+                h('div', { class: 'card-foot' }, [
+                  h('a', { class: 'btn btn-primary', href: c.url || '#', target: '_blank', rel: 'noreferrer' }, 'Abrir')
+                ])
+              ])
+            ))
+          ])
+        );
+      }
+
+      async function renderInstitutional(main) {
+        const all = await ContentRepo.list();
+        const posts = all.filter(c => c.type === 'Post institucional' && ContentRepo.isVisibleToUser(c, user));
+        main.appendChild(
+          h('section', { class: 'page' }, [
+            h('header', { class: 'page-head' }, [
+              h('div', {}, [
+                h('h2', {}, 'Institucional'),
+                h('p', { class: 'muted' }, 'Comunicados e diretrizes internas.')
+              ])
+            ]),
+            h('div', { class: 'grid grid-2' }, posts.map(c =>
+              h('article', { class: 'card' }, [
+                h('div', { class: 'badge badge-soft' }, `Atualizado em ${c.updatedAt}`),
+                h('h3', { class: 'card-title' }, c.title),
+                h('p', { class: 'muted' }, c.description),
+                h('div', { class: 'card-foot' }, [
+                  h('a', { class: 'btn btn-secondary', href: c.url || '#', target: '_blank', rel: 'noreferrer' }, 'Ler')
+                ])
+              ])
+            ))
+          ])
+        );
+      }
+
+      async function renderQuizzes(main) {
+        const pending = await getPendingQuizzesForUser(user);
+        const eligibleFinal = await canTakeFinalQuiz(user);
+        const myAttempts = (await QuizRepo.listAttempts()).filter(a => a.userId === user.id).slice().reverse();
+
+        const canSeeResults = can('quizzes.results.view');
+
+        main.appendChild(
+          h('section', { class: 'page' }, [
+            h('header', { class: 'page-head' }, [
+              h('div', {}, [
+                h('h2', {}, 'Avaliações'),
+                h('p', { class: 'muted' }, 'Questionário final e provas periódicas (conforme atribuições e permissões).')
+              ])
+            ]),
+            h('div', { class: 'grid grid-2' }, [
+              h('div', { class: 'card' }, [
+                h('h3', {}, 'Pendentes'),
+                pending.length
+                  ? h('ul', { class: 'list' }, pending.map(p =>
+                      h('li', { class: 'list-item' }, [
+                        h('div', {}, [
+                          h('strong', {}, p.title),
+                          h('div', { class: 'muted small' }, p.meta)
+                        ]),
+                        h('button', { class: 'btn btn-primary', type: 'button', onclick: () => openQuizRunner(p.quizId, p.runId) }, 'Iniciar')
+                      ])
+                    ))
+                  : h('p', { class: 'muted' }, 'Sem avaliações pendentes.')
+              ]),
+              h('div', { class: 'card' }, [
+                h('h3', {}, 'Regras do questionário final'),
+                h('p', { class: 'muted' }, eligibleFinal
+                  ? 'Você concluiu 100% dos conteúdos obrigatórios. O questionário final está liberado.'
+                  : 'Conclua 100% dos conteúdos obrigatórios para liberar automaticamente o questionário final.'
+                ),
+                h('a', { class: 'btn btn-secondary', href: '#onboarding' }, 'Ver Onboarding')
+              ])
+            ]),
+            h('div', { class: 'card' }, [
+              h('div', { class: 'row-between' }, [
+                h('h3', {}, 'Meu histórico'),
+                h('span', { class: 'muted small' }, 'Registrado em localStorage')
+              ]),
+              myAttempts.length
+                ? h('div', { class: 'table-wrap' }, [
+                    h('table', { class: 'table' }, [
+                      h('thead', {}, [
+                        h('tr', {}, [
+                          h('th', {}, 'Avaliação'),
+                          h('th', {}, 'Data'),
+                          h('th', {}, 'Nota'),
+                          h('th', {}, 'Status'),
+                          h('th', {}, 'Tempo')
+                        ])
+                      ]),
+                      h('tbody', {}, myAttempts.map(a =>
+                        h('tr', {}, [
+                          h('td', {}, a.quizTitle),
+                          h('td', {}, formatDateTime(a.finishedAt)),
+                          h('td', {}, `${a.score}/${a.maxScore}`),
+                          h('td', {}, a.status),
+                          h('td', {}, `${Math.round(a.durationSec)}s`)
+                        ])
+                      ))
+                    ])
+                  ])
+                : h('p', { class: 'muted' }, 'Sem tentativas registradas.')
+            ]),
+            canSeeResults ? h('div', { class: 'card' }, [
+              h('h3', {}, 'Resultados do time (Supervisor/Admin)'),
+              h('p', { class: 'muted' }, 'Visão consolidada conforme escopo definido pelo Admin.'),
+              h('button', { class: 'btn btn-secondary', type: 'button', onclick: () => openTeamResults() }, 'Ver resultados')
+            ]) : null
+          ].filter(Boolean))
+        );
+
+        function openQuizRunner(quizId, runId) {
+          location.hash = '#quizzes';
+          const dlg = document.createElement('dialog');
+          dlg.className = 'dialog dialog-lg';
+          document.body.appendChild(dlg);
+
+          (async () => {
+            const runner = await QuizRepo.createRunner({ user, quizId, runId });
+            dlg.innerHTML = '';
+            dlg.appendChild(runner.el);
+
+            runner.onClose = () => { dlg.close(); };
+            runner.onDone = () => { dlg.close(); renderQuizzes(main); };
+
+            dlg.showModal();
+            dlg.addEventListener('close', () => { dlg.remove(); });
+          })();
+        }
+
+        async function openTeamResults() {
+          const dlg = document.createElement('dialog');
+          dlg.className = 'dialog dialog-lg';
+          document.body.appendChild(dlg);
+
+          const { rows, title } = await QuizRepo.buildTeamResultsView(user);
+          dlg.innerHTML = '';
+          dlg.appendChild(
+            h('div', { class: 'dialog-head' }, [
+              h('div', {}, [ h('h3', {}, title), h('p', { class: 'muted' }, 'Somente dentro do escopo autorizado.') ]),
+              h('button', { class: 'icon-btn', 'aria-label': 'Fechar', onclick: () => dlg.close() }, '×')
+            ])
+          );
+          dlg.appendChild(
+            h('div', { class: 'dialog-body' }, [
+              rows.length ? h('div', { class: 'table-wrap' }, [
+                h('table', { class: 'table' }, [
+                  h('thead', {}, [h('tr', {}, [
+                    h('th', {}, 'Usuário'),
+                    h('th', {}, 'Avaliação'),
+                    h('th', {}, 'Data'),
+                    h('th', {}, 'Nota'),
+                    h('th', {}, 'Status')
+                  ])]),
+                  h('tbody', {}, rows.map(r => h('tr', {}, [
+                    h('td', {}, r.userName),
+                    h('td', {}, r.quizTitle),
+                    h('td', {}, formatDateTime(r.finishedAt)),
+                    h('td', {}, `${r.score}/${r.maxScore}`),
+                    h('td', {}, r.status)
+                  ])))
+                ])
+              ]) : h('p', { class: 'muted' }, 'Sem dados no escopo.')
+            ])
+          );
+          dlg.appendChild(
+            h('div', { class: 'dialog-foot' }, [
+              h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => dlg.close() }, 'Fechar')
+            ])
+          );
+
+          dlg.showModal();
+          dlg.addEventListener('close', () => dlg.remove());
+        }
+      }
+
+      async function renderAssistant(main) {
+        main.appendChild(
+          h('section', { class: 'page' }, [
+            h('header', { class: 'page-head' }, [
+              h('div', {}, [
+                h('h2', {}, 'Assistente'),
+                h('p', { class: 'muted' }, 'Mock de integração externa, com histórico salvo.')
+              ])
+            ]),
+            h('div', { class: 'card' }, [
+              mountAssistantPanel(user)
+            ])
+          ])
+        );
+      }
+
+      window.addEventListener('hashchange', () => renderSection(currentSectionId()));
+      render();
+    </script>
+  </body>
+</html>

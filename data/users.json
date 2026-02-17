@@ -1,0 +1,50 @@
+[
+  {
+    "id": "u_admin_001",
+    "name": "Helena Moreira",
+    "email": "helena.admin@rkive.example",
+    "role": "Admin",
+    "active": true,
+    "unit": "rKive",
+    "sector": "Comercial",
+    "position": "Analista de CS",
+    "permissionsOverride": { "allow": [], "deny": [] },
+    "teamScope": { "sector": null, "position": null, "userIds": [] },
+    "passwordMock": "rkive123",
+    "createdAt": "2026-02-01T10:00:00.000Z",
+    "updatedAt": "2026-02-01T10:00:00.000Z"
+  },
+  {
+    "id": "u_colab_cad_001",
+    "name": "Bruno Santos",
+    "email": "bruno.cadastro@rkive.example",
+    "role": "Colaborador",
+    "active": true,
+    "unit": "rKive",
+    "sector": "Cadastro",
+    "position": "Auxiliar de Cadastro",
+    "permissionsOverride": { "allow": [], "deny": [] },
+    "teamScope": { "sector": null, "position": null, "userIds": [] },
+    "passwordMock": "rkive123",
+    "createdAt": "2026-02-01T10:00:00.000Z",
+    "updatedAt": "2026-02-01T10:00:00.000Z"
+  },
+  {
+    "id": "u_sup_cs_001",
+    "name": "Camila Almeida",
+    "email": "camila.cs@rkive.example",
+    "role": "Supervisor",
+    "active": true,
+    "unit": "rKive",
+    "sector": "CS",
+    "position": "Analista de CS",
+    "permissionsOverride": {
+      "allow": [],
+      "deny": []
+    },
+    "teamScope": { "sector": "CS", "position": "Analista de CS", "userIds": [] },
+    "passwordMock": "rkive123",
+    "createdAt": "2026-02-01T10:00:00.000Z",
+    "updatedAt": "2026-02-01T10:00:00.000Z"
+  }
+]

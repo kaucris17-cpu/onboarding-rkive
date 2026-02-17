@@ -1,0 +1,106 @@
+[
+  {
+    "id": "quiz_final_cadastro",
+    "title": "Questionário Final • Trilha Auxiliar de Cadastro",
+    "description": "Liberado após concluir 100% dos conteúdos obrigatórios da trilha.",
+    "kind": "final",
+    "sector": "Cadastro",
+    "positions": ["Auxiliar de Cadastro"],
+    "minScore": 3,
+    "createdAt": "2026-02-01T10:00:00.000Z",
+    "questions": [
+      {
+        "id": "q1",
+        "prompt": "Qual é o objetivo principal do checklist de Cadastro?",
+        "options": ["Aumentar volume sem validação", "Garantir qualidade e consistência", "Eliminar qualquer revisão"],
+        "correctIndex": 1
+      },
+      {
+        "id": "q2",
+        "prompt": "Quando uma política interna deve ser seguida?",
+        "options": ["Somente quando solicitado", "Sempre, como padrão de conduta", "Apenas em auditorias"],
+        "correctIndex": 1
+      },
+      {
+        "id": "q3",
+        "prompt": "O que fazer ao encontrar inconsistência crítica no cadastro?",
+        "options": ["Ignorar e finalizar", "Registrar e seguir o fluxo correto", "Alterar sem registrar"],
+        "correctIndex": 1
+      },
+      {
+        "id": "q4",
+        "prompt": "Ferramentas essenciais servem para:",
+        "options": ["Padronizar e agilizar o trabalho", "Substituir treinamento", "Evitar documentação"],
+        "correctIndex": 0
+      }
+    ]
+  },
+  {
+    "id": "quiz_final_cs",
+    "title": "Questionário Final • Trilha Analista de CS",
+    "description": "Liberado após concluir 100% dos conteúdos obrigatórios da trilha.",
+    "kind": "final",
+    "sector": "CS",
+    "positions": ["Analista de CS"],
+    "minScore": 3,
+    "createdAt": "2026-02-01T10:00:00.000Z",
+    "questions": [
+      {
+        "id": "q1",
+        "prompt": "No atendimento, o tom de voz deve ser:",
+        "options": ["Impessoal e seco", "Clareza, empatia e objetividade", "Ambíguo para ganhar tempo"],
+        "correctIndex": 1
+      },
+      {
+        "id": "q2",
+        "prompt": "O objetivo do playbook de retenção é:",
+        "options": ["Aumentar tickets", "Reduzir churn e orientar ações", "Evitar contato com o cliente"],
+        "correctIndex": 1
+      },
+      {
+        "id": "q3",
+        "prompt": "SLAs existem para:",
+        "options": ["Definir prazos e prioridades", "Remover responsabilidades", "Impedir escalonamento"],
+        "correctIndex": 0
+      },
+      {
+        "id": "q4",
+        "prompt": "Escalonamento deve ocorrer quando:",
+        "options": ["Sempre no primeiro contato", "Há bloqueio técnico/processual conforme fluxo", "Nunca"],
+        "correctIndex": 1
+      }
+    ]
+  },
+  {
+    "id": "quiz_periodic_cs_001",
+    "title": "Prova Periódica • CS (Rotina)",
+    "description": "Avaliação recorrente para reforço de processos de CS.",
+    "kind": "periodic",
+    "sector": "CS",
+    "positions": ["Analista de CS"],
+    "minScore": 2,
+    "createdAt": "2026-02-01T10:00:00.000Z",
+    "recurrence": { "intervalDays": 15, "dueDays": 7 },
+    "assignedUserIds": [],
+    "questions": [
+      {
+        "id": "q1",
+        "prompt": "Em caso de risco de churn, o primeiro passo é:",
+        "options": ["Ignorar sinais", "Diagnosticar e propor plano de ação", "Transferir sem análise"],
+        "correctIndex": 1
+      },
+      {
+        "id": "q2",
+        "prompt": "Se um caso excede seu nível de autonomia, você deve:",
+        "options": ["Escalonar conforme o fluxo", "Prometer solução imediata", "Encerrar atendimento"],
+        "correctIndex": 0
+      },
+      {
+        "id": "q3",
+        "prompt": "Qual é uma boa prática de comunicação em CS?",
+        "options": ["Mensagens longas e confusas", "Alinhamento claro com próximos passos", "Evitar registrar informações"],
+        "correctIndex": 1
+      }
+    ]
+  }
+]
